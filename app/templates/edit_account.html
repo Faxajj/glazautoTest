@@ -24,6 +24,11 @@
       <input id="label" name="label" type="text" required value="{{ account.label }}" />
     </div>
     <div class="form-row">
+      <label for="proxy_socks5">Прокси SOCKS5 (опционально, для Personal Pay)</label>
+      <input id="proxy_socks5" name="proxy_socks5" type="text" value="{{ (account.credentials.get('https_proxy') or account.credentials.get('proxy') or '') if account.credentials else '' }}" placeholder="135.106.40.29:63137:smY9hX1m:6vrTNk8q" />
+      <p class="form-hint">Форматы: <code>IP:PORT:USER:PASS</code>, <code>USER:PASS@IP:PORT</code> или <code>socks5h://...</code>.</p>
+    </div>
+    <div class="form-row">
       <label for="credentials_json">Credentials (JSON) *</label>
       <textarea id="credentials_json" name="credentials_json" rows="14" class="textarea-json">{{ account.credentials | tojson(indent=2) }}</textarea>
       <p class="form-hint">Измените <strong>auth_token</strong> или <strong>device_id</strong>, если токен истёк. Сохраните валидный JSON.</p>

@@ -35,6 +35,11 @@
       <input id="label" name="label" type="text" placeholder="Например: UniversalCoins — основной" required />
     </div>
     <div class="form-row">
+      <label for="proxy_socks5">Прокси SOCKS5 (опционально, для Personal Pay)</label>
+      <input id="proxy_socks5" name="proxy_socks5" type="text" placeholder="135.106.40.29:63137:smY9hX1m:6vrTNk8q" />
+      <p class="form-hint">Форматы: <code>IP:PORT:USER:PASS</code>, <code>USER:PASS@IP:PORT</code> или готовый URL <code>socks5h://...</code>. Поле автоматически записывается в credentials как <code>proxy/http_proxy/https_proxy</code>.</p>
+    </div>
+    <div class="form-row">
       <label for="credentials_json">Credentials (JSON) *</label>
       <textarea id="credentials_json" name="credentials_json" rows="18" class="textarea-json" placeholder='UniversalCoins — нужны логин, пароль и PIN:
 {

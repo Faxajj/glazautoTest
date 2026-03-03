@@ -560,6 +560,44 @@ async def add_account_page(request: Request, window: str = ""):
     )
 
 
+
+
+def _proxy_to_url(raw: str) -> str:
+    """Нормализует прокси из UI.
+
+    Поддержка:
+    - host:port:user:pass -> socks5h://user:pass@host:port
+    - user:pass@host:port -> socks5h://user:pass@host:port
+    - готовый URL (socks5://, socks5h://, http://, https://) -> как есть
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    low = raw.lower()
+    if low.startswith(("socks5://", "socks5h://", "http://", "https://")):
+        return raw
+    if "@" in raw:
+        return f"socks5h://{raw}"
+    parts = [p.strip() for p in raw.split(":")]
+    if len(parts) >= 4:
+        host, port, user = parts[0], parts[1], parts[2]
+        password = ":".join(parts[3:])
+        if host and port and user and password:
+            return f"socks5h://{user}:{password}@{host}:{port}"
+    return f"socks5h://{raw}"
+
+
+def _apply_proxy_to_credentials(credentials: dict, proxy_raw: str) -> dict:
+    """Добавляет/обновляет proxy-поля в credentials из поля формы."""
+    proxy_raw = (proxy_raw or "").strip()
+    if not proxy_raw:
+        return credentials
+    c = dict(credentials or {})
+    proxy_url = _proxy_to_url(proxy_raw)
+    c["proxy"] = proxy_url
+    c["http_proxy"] = proxy_url
+    c["https_proxy"] = proxy_url
+    return c
 def _parse_credentials(raw: str) -> dict:
     """Парсит credentials: либо JSON, либо токен (в т.ч. строка вида Authorization: eyJ...)."""
     raw = (raw or "").strip()
@@ -589,6 +627,7 @@ async def add_account_post(
     bank_type: str = Form(...),
     label: str = Form(...),
     credentials_json: str = Form("{}"),
+    proxy_socks5: str = Form(""),
     window: str = Form("glazars"),
 ):
     if bank_type not in BANK_TYPES:
@@ -598,6 +637,8 @@ async def add_account_post(
     credentials = _parse_credentials(credentials_json)
     if not credentials and credentials_json.strip():
         return RedirectResponse(url="/add?error=invalid_json", status_code=302)
+    if bank_type == "personalpay":
+        credentials = _apply_proxy_to_credentials(credentials, proxy_socks5)
     if not label.strip():
         label = f"{BANK_TYPES[bank_type]['name']} — {bank_type}"
     new_id = db_add_account(bank_type, label.strip(), credentials, window=window)
@@ -629,6 +670,7 @@ async def edit_account_post(
     account_id: int,
     label: str = Form(...),
     credentials_json: str = Form("{}"),
+    proxy_socks5: str = Form(""),
     window: str = Form(""),
 ):
     acc = get_account(account_id)
@@ -637,6 +679,8 @@ async def edit_account_post(
     credentials = _parse_credentials(credentials_json)
     if not credentials and credentials_json.strip():
         return RedirectResponse(url=f"/account/{account_id}/edit?error=invalid_json", status_code=302)
+    if acc["bank_type"] == "personalpay":
+        credentials = _apply_proxy_to_credentials(credentials, proxy_socks5)
     if label.strip():
         db_update_account(account_id, label=label.strip())
     if credentials:
