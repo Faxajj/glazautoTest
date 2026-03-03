@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Изменить профиль — {{ account.label }}{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h2>Изменить профиль</h2>
+  <p class="meta">Банк: <strong>{{ account.bank_type }}</strong></p>
+  {% if request.query_params.get('error') == 'invalid_json' %}
+  <div class="alert alert-error">Credentials должны быть валидным JSON.</div>
+  {% endif %}
+
+  <form method="post" action="/account/{{ account.id }}/edit" class="form">
+    <div class="form-row">
+      <label for="window">Окно (группа)</label>
+      <select id="window" name="window">
+        {% for slug, name in (window_list|default([])) %}
+        <option value="{{ slug }}" {% if (account.window or 'glazars') == slug %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="label">Название (как показывать в списке) *</label>
+      <input id="label" name="label" type="text" required value="{{ account.label }}" />
+    </div>
+    <div class="form-row">
+      <label for="credentials_json">Credentials (JSON) *</label>
+      <textarea id="credentials_json" name="credentials_json" rows="14" class="textarea-json">{{ account.credentials | tojson(indent=2) }}</textarea>
+      <p class="form-hint">Измените <strong>auth_token</strong> или <strong>device_id</strong>, если токен истёк. Сохраните валидный JSON.</p>
+    </div>
+    <button type="submit" class="btn-primary">Сохранить</button>
+    <a href="/?account_id={{ account.id }}" class="btn-secondary">Отмена</a>
+  </form>
+</section>
+{% endblock %}

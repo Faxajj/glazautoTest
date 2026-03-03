@@ -1,0 +1,29 @@
+# Personal Pay: исправление 403 Forbidden
+
+Если при запросах к `mobile.prod.personalpay.dev` (financial-accounts, commit-outer и т.д.) приходит **403 Forbidden**, проверь следующее.
+
+## 1. Заголовок Authorization — без "Bearer "
+
+Приложение Personal Pay в перехвате отправляет **только JWT**, без слова `Bearer`:
+
+- **Неправильно:** `Authorization: Bearer eyJ0eXAiOiJKV1QiLC...`
+- **Правильно:** `Authorization: eyJ0eXAiOiJKV1QiLC...`
+
+В коде (например `app/drivers/personalpay.py`) при использовании `auth_token` не добавлять префикс `"Bearer "` — отдавать токен как есть в заголовок `Authorization`.
+
+## 2. User-Agent как в приложении
+
+Не заменять `%20` на пробел в User-Agent. Отправлять строку как в перехвате:
+
+- `User-Agent: Personal%20Pay/2.0.1070 CFNetwork/3826.600.41 Darwin/24.6.0`
+
+## 3. device_id и x-fraud-paygilant-session-id
+
+При использовании только `auth_token` в credentials нужно также передавать **device_id** (из тела запроса логина или из заголовка `x-fraud-paygilant-session-id` — часть до подчёркивания). Иначе сервер может отвечать 403.
+
+Формат заголовка: `x-fraud-paygilant-session-id: <device_id>_<timestamp_ms>`.
+
+## 4. Где смотреть в коде
+
+- `app/drivers/personalpay.py`: функция `_get_token()` — не добавлять "Bearer " к auth_token; `_base_headers()` — не делать replace("%20", " ") для User-Agent.
+- Credentials для аккаунта: минимум `auth_token` + `device_id`.
