@@ -88,7 +88,7 @@ Personal Pay — два варианта:
   "password": "69d625f0569f43ab4aea21",
   "push_device_token": "d-sZXA9CQ06RiJVpsWr03c:APA91b..."
 }'></textarea>
-      <p class="form-hint"><strong>Токен</strong> лежит в заголовке Authorization любого запроса к personalpay.dev после входа. Если получаешь <strong>403 Forbidden</strong>, добавь в JSON <strong>device_id</strong> (можно вставить даже полный <code>x-fraud-paygilant-session-id</code> — дашборд сам выделит device_id). Для VPS/Ubuntu при блоке IP добавь прокси: <code>{"https_proxy":"http://user:pass@host:port"}</code> или <code>{"proxy":"http://..."}</code>.</p>
+      <p class="form-hint"><strong>Токен</strong> лежит в заголовке Authorization любого запроса к personalpay.dev после входа. Если получаешь <strong>403 Forbidden</strong>, добавь в JSON <strong>device_id</strong> (можно вставить даже полный <code>x-fraud-paygilant-session-id</code> — дашборд сам выделит device_id). Прокси теперь заполняй отдельными полями выше (тип/host/port/login/password).</p>
     </div>
     <button type="submit" class="btn-primary">Добавить</button>
     <a href="/" class="btn-secondary">Отмена</a>

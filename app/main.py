@@ -627,6 +627,43 @@ def _apply_proxy_to_credentials(proxy_url: str, credentials: dict) -> dict:
     return c
 
 
+def _proxy_parts_from_credentials(credentials: dict) -> dict:
+    """Достаёт proxy fields для формы редактирования из сохранённого URL."""
+    c = credentials or {}
+    raw = (c.get("https_proxy") or c.get("proxy") or c.get("http_proxy") or "").strip()
+    result = {
+        "proxy_type": "socks5h",
+        "proxy_host": "",
+        "proxy_port": "",
+        "proxy_user": "",
+        "proxy_password": "",
+        "proxy_raw": raw,
+    }
+    if not raw:
+        return result
+
+    low = raw.lower()
+    if "://" in raw:
+        scheme, rest = raw.split("://", 1)
+        if scheme.lower() in ("socks5", "socks5h", "http", "https"):
+            result["proxy_type"] = scheme.lower()
+        raw = rest
+
+    auth, hostport = (raw.split("@", 1) + [""])[:2] if "@" in raw else ("", raw)
+    if auth and ":" in auth:
+        u, p = auth.split(":", 1)
+        result["proxy_user"] = u
+        result["proxy_password"] = p
+
+    if hostport and ":" in hostport:
+        h, pt = hostport.rsplit(":", 1)
+        result["proxy_host"] = h
+        result["proxy_port"] = pt
+    else:
+        result["proxy_host"] = hostport
+    return result
+
+
 def _parse_credentials(raw: str) -> dict:
     """Парсит credentials: либо JSON, либо токен (в т.ч. строка вида Authorization: eyJ...)."""
     raw = (raw or "").strip()
@@ -692,6 +729,7 @@ async def edit_account_page(request: Request, account_id: int):
     acc = get_account(account_id)
     if not acc:
         return RedirectResponse(url="/", status_code=302)
+    proxy_parts = _proxy_parts_from_credentials(acc.get("credentials") or {})
     return templates.TemplateResponse(
         "edit_account.html",
         {
@@ -703,6 +741,7 @@ async def edit_account_page(request: Request, account_id: int):
             "account_id": None,
             "selected": acc,
             "window_slug": None,
+            **proxy_parts,
         },
     )
 
