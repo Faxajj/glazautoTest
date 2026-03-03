@@ -27,3 +27,25 @@
 
 - `app/drivers/personalpay.py`: функция `_get_token()` — не добавлять "Bearer " к auth_token; `_base_headers()` — не делать replace("%20", " ") для User-Agent.
 - Credentials для аккаунта: минимум `auth_token` + `device_id`.
+
+## 5. Сервер Ubuntu/VPS и блок по IP
+
+Если на Windows/домашнем интернете работает, а на Ubuntu-сервере стабильно 403, часто это антифрод по IP датацентра.
+
+Добавь прокси в credentials аккаунта:
+
+```json
+{
+  "auth_token": "eyJ...",
+  "device_id": "178DC6C7-C43C-4DCC-B3BC-DBFAAA0F8FD2",
+  "https_proxy": "http://user:pass@host:port"
+}
+```
+
+Поддерживаются поля: `proxy` (для http+https сразу), `http_proxy`, `https_proxy`.
+
+## 6. Важно для SOCKS5
+
+Для прокси `socks5://`/`socks5h://` в Python `requests` нужны SOCKS-зависимости (`requests[socks]` / `PySocks`).
+Если их нет, будет ошибка `Missing dependencies for SOCKS support`.
+
