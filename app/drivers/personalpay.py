@@ -14,11 +14,26 @@ HTTP_TIMEOUT = (5, 12)  # (connect, read) — даём API время ответ
 
 def _norm_creds(creds: dict) -> dict:
     base = (creds.get("base_url") or "https://mobile.prod.personalpay.dev").strip().rstrip("/")
+    raw_device = (creds.get("device_id") or "").strip()
+    paygilant_raw = (
+        creds.get("x_fraud_paygilant_session_id")
+        or creds.get("paygilant_session_id")
+        or creds.get("x-fraud-paygilant-session-id")
+        or ""
+    ).strip()
+    # Часто в credentials вставляют полный x-fraud-paygilant-session-id вида <device_id>_<timestamp>.
+    # Для device_id берём часть до первого подчёркивания.
+    paygilant_device = paygilant_raw.split("_", 1)[0].strip() if paygilant_raw else ""
+    device_id = paygilant_device or raw_device
+    # Если вставили не только device_id, а целый session-id с timestamp — отрежем хвост.
+    if "_" in device_id:
+        device_id = device_id.split("_", 1)[0].strip()
+
     return {
         "base_url": base,
         "username": (creds.get("username") or "").strip(),
         "password": (creds.get("password") or "").strip().strip('"').strip("'"),
-        "device_id": (creds.get("device_id") or "").strip(),
+        "device_id": device_id,
         "push_device_token": (creds.get("push_device_token") or "").strip(),
         "auth_token": (creds.get("auth_token") or "").strip(),
         "pin_hash": (creds.get("pin_hash") or "").strip(),
@@ -26,6 +41,9 @@ def _norm_creds(creds: dict) -> dict:
         "os_version": (creds.get("os_version") or "18.6.2").strip(),
         "useragent_device": (creds.get("useragent_device") or "Apple iPhone 15 Pro Max, iOS/18.6.2").strip(),
         "user_agent": (creds.get("user_agent") or "Personal%20Pay/2.0.1070 CFNetwork/3826.600.41 Darwin/24.6.0").strip(),
+        "proxy": (creds.get("proxy") or "").strip(),
+        "http_proxy": (creds.get("http_proxy") or "").strip(),
+        "https_proxy": (creds.get("https_proxy") or "").strip(),
     }
 
 
@@ -45,6 +63,21 @@ def _base_headers(c: dict) -> dict:
 
 def _paygilant_id(device_id: str) -> str:
     return f"{device_id}_{int(time.time() * 1000)}"
+
+
+def _session(c: dict) -> requests.Session:
+    s = requests.Session()
+    # На сервере (Ubuntu/VPS) частая проблема — egress IP датацентра блочится anti-fraud API.
+    # Даём возможность явно прокинуть прокси через credentials.
+    proxy = c.get("proxy") or ""
+    http_proxy = c.get("http_proxy") or proxy
+    https_proxy = c.get("https_proxy") or proxy
+    if http_proxy or https_proxy:
+        s.proxies.update({
+            "http": http_proxy or https_proxy,
+            "https": https_proxy or http_proxy,
+        })
+    return s
 
 
 def _get_token(session: requests.Session, c: dict) -> tuple:
@@ -90,7 +123,7 @@ def _get_token(session: requests.Session, c: dict) -> tuple:
 def get_accounts(credentials: dict) -> dict:
     """GET financial-accounts — для отображения счетов."""
     c = _norm_creds(credentials)
-    session = requests.Session()
+    session = _session(c)
     token, paygilant = _get_token(session, c)
     headers = _base_headers(c) | {
         "Authorization": token,
@@ -185,7 +218,7 @@ def get_balance(credentials: dict) -> dict:
 
 def beneficiary_discovery(credentials: dict, destination: str) -> dict:
     c = _norm_creds(credentials)
-    session = requests.Session()
+    session = _session(c)
     token, paygilant = _get_token(session, c)
     headers = _base_headers(c) | {
         "Authorization": token,
@@ -208,7 +241,7 @@ def create_withdraw(
     comments: str = "Varios (VAR)",
 ) -> dict:
     c = _norm_creds(credentials)
-    session = requests.Session()
+    session = _session(c)
     token, paygilant = _get_token(session, c)
     headers = _base_headers(c) | {
         "Authorization": token,
@@ -220,7 +253,7 @@ def create_withdraw(
         "transactionId": tx_id,
         "comments": comments,
         "destination": destination.strip(),
-        "additionalInfo": {"sessionId": paygilant, "deviceId": "no_device_id"},
+        "additionalInfo": {"sessionId": paygilant, "deviceId": c.get("device_id") or "no_device_id"},
     }
     r = session.post(
         f"{c['base_url']}/payments/cashout/b2c-bff-service/transferences/commit-outer",
@@ -240,7 +273,7 @@ def create_withdraw(
 def get_activities_list(credentials: dict, offset: int = 0, limit: int = 15) -> dict:
     """История операций: GET mobile.prod.../platform/transactional-activity/v1/activities-list."""
     c = _norm_creds(credentials)
-    session = requests.Session()
+    session = _session(c)
     token, paygilant = _get_token(session, c)
     headers = _base_headers(c) | {
         "Authorization": token,
@@ -260,7 +293,7 @@ def get_activities_list(credentials: dict, offset: int = 0, limit: int = 15) -> 
 def get_transference_details(credentials: dict, transaction_id: str) -> dict:
     """Детали перевода (чек). Пробуем mobile.prod (как в приложении), затем prod."""
     c = _norm_creds(credentials)
-    session = requests.Session()
+    session = _session(c)
     token, paygilant = _get_token(session, c)
     tid = transaction_id.strip()
     headers = _base_headers(c) | {
