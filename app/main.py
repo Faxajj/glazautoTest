@@ -2,15 +2,21 @@
 Единый дашборд банков: несколько аккаунтов, переключение между ними.
 """
 import base64
+import hashlib
 import html
+import hmac
 import json
+import os
+import secrets
 import time
 import traceback
+from decimal import Decimal, InvalidOperation
 from typing import Optional, Tuple
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -36,18 +42,182 @@ from app.drivers.personalpay import (
 )
 
 app = FastAPI(title="Banks Dashboard — несколько аккаунтов")
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 init_db()
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+AUTH_COOKIE_NAME = "dashboard_auth"
+AUTH_SESSION_HOURS = int(os.getenv("DASHBOARD_AUTH_SESSION_HOURS", "12"))
+AUTH_SECRET = os.getenv("DASHBOARD_AUTH_SECRET", "change-me-in-production")
+AUTH_COOKIE_SECURE = os.getenv("DASHBOARD_AUTH_COOKIE_SECURE", "0").strip().lower() in {"1", "true", "yes", "on"}
+APP_DEBUG = os.getenv("APP_DEBUG", "0").strip().lower() in {"1", "true", "yes", "on"}
+LOGIN_RATE_LIMIT_WINDOW = int(os.getenv("LOGIN_RATE_LIMIT_WINDOW", "300"))
+LOGIN_RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "10"))
+AUTO_WITHDRAW_MAX_PARTS = int(os.getenv("AUTO_WITHDRAW_MAX_PARTS", "100"))
+LOGIN_ATTEMPTS: dict[str, list[float]] = {}
+
+
+def _load_auth_users() -> dict:
+    """Читает учётки из DASHBOARD_USERS: user:pass,user2:pass2."""
+    raw = (os.getenv("DASHBOARD_USERS") or "").strip()
+    users = {}
+    if not raw:
+        return users
+    for item in raw.split(","):
+        item = item.strip()
+        if not item or ":" not in item:
+            continue
+        username, password = item.split(":", 1)
+        username = username.strip()
+        if username and password:
+            users[username] = password
+    return users
+
+
+AUTH_USERS = _load_auth_users()
+if AUTH_USERS and AUTH_SECRET == "change-me-in-production":
+    raise RuntimeError("DASHBOARD_AUTH_SECRET must be set in production when DASHBOARD_USERS is enabled")
+
+
+def _is_auth_enabled() -> bool:
+    return bool(AUTH_USERS)
+
+
+def _sign_auth_payload(username: str, expires_at: int) -> str:
+    payload = f"{username}:{expires_at}"
+    signature = hmac.new(AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}:{signature}"
+
+
+def _verify_auth_cookie(raw_cookie: str) -> Optional[str]:
+    if not raw_cookie:
+        return None
+    parts = raw_cookie.split(":", 2)
+    if len(parts) != 3:
+        return None
+    username, exp_raw, signature = parts
+    if username not in AUTH_USERS:
+        return None
+    try:
+        expires_at = int(exp_raw)
+    except ValueError:
+        return None
+    if expires_at < int(time.time()):
+        return None
+    expected = _sign_auth_payload(username, expires_at).rsplit(":", 1)[1]
+    if not hmac.compare_digest(signature, expected):
+        return None
+    return username
+
+
+def _get_current_user(request: Request) -> Optional[str]:
+    return _verify_auth_cookie(request.cookies.get(AUTH_COOKIE_NAME, ""))
+
+
+def _require_auth(request: Request):
+    user = _get_current_user(request)
+    if user:
+        return user
+    return RedirectResponse(url="/login", status_code=302)
+
 
 def _tojson(obj, indent=2):
     return json.dumps(obj, indent=indent, ensure_ascii=False)
 
+def _format_amount(value, decimals: int = 2, trim_trailing_zeros: bool = True) -> str:
+    """Форматирует число с разделителями разрядов: 130805 -> 130.805, 130805.5 -> 130.805,50."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return ""
+        normalized = raw.replace(" ", "")
+        if "," in normalized and "." in normalized:
+            if normalized.rfind(",") > normalized.rfind("."):
+                normalized = normalized.replace(".", "").replace(",", ".")
+            else:
+                normalized = normalized.replace(",", "")
+        elif "," in normalized:
+            normalized = normalized.replace(",", ".")
+        try:
+            number = float(Decimal(normalized))
+        except ValueError:
+            return raw
+        except InvalidOperation:
+            return raw
+    else:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return str(value)
 
+    sign = "-" if number < 0 else ""
+    number = abs(number)
+    formatted = f"{number:,.{decimals}f}".replace(",", " ").replace(".", ",").replace(" ", ".")
+    if trim_trailing_zeros and "," in formatted:
+        formatted = formatted.rstrip("0").rstrip(",")
+    return sign + formatted
+
+
+
+
+def _parse_amount_input(value: str) -> Optional[Decimal]:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    normalized = raw.replace(" ", "")
+    if "," in normalized and "." in normalized:
+        if normalized.rfind(",") > normalized.rfind("."):
+            normalized = normalized.replace(".", "").replace(",", ".")
+        else:
+            normalized = normalized.replace(",", "")
+    elif "," in normalized:
+        normalized = normalized.replace(",", ".")
+    try:
+        number = Decimal(normalized)
+    except (InvalidOperation, ValueError):
+        return None
+    return number
+
+def _check_login_rate_limit(key: str) -> bool:
+    now = time.time()
+    attempts = [t for t in LOGIN_ATTEMPTS.get(key, []) if now - t <= LOGIN_RATE_LIMIT_WINDOW]
+    LOGIN_ATTEMPTS[key] = attempts
+    return len(attempts) >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS
+
+
+def _register_login_failure(key: str) -> None:
+    attempts = LOGIN_ATTEMPTS.get(key, [])
+    attempts.append(time.time())
+    LOGIN_ATTEMPTS[key] = attempts
+
+
+def _clear_login_failures(key: str) -> None:
+    LOGIN_ATTEMPTS.pop(key, None)
+
+
+def _require_same_origin(request: Request) -> bool:
+    origin = request.headers.get("origin") or ""
+    referer = request.headers.get("referer") or ""
+    expected = urlparse(str(request.base_url)).netloc
+    if not origin and not referer:
+        return True
+    for source in (origin, referer):
+        if not source:
+            continue
+        try:
+            netloc = urlparse(source).netloc
+        except Exception:
+            return False
+        if netloc and netloc == expected:
+            return True
+    return False
 templates.env.filters["tojson"] = _tojson
+templates.env.filters["fmt_amount"] = _format_amount
 
 CONCEPTS_UC = [
     ("VARIOS", "VARIOS (разное)"),
@@ -328,16 +498,77 @@ def _window_name(slug: str) -> str:
     return slug
 
 
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    if _is_auth_enabled() and _get_current_user(request):
+        return RedirectResponse(url="/", status_code=302)
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "auth_enabled": _is_auth_enabled(),
+            "is_authenticated": False,
+        },
+    )
+
+
+@app.post("/login", response_class=RedirectResponse)
+async def login_post(request: Request, username: str = Form(""), password: str = Form("")):
+    if not _is_auth_enabled():
+        return RedirectResponse(url="/", status_code=302)
+    if not _require_same_origin(request):
+        return RedirectResponse(url="/login?error=csrf", status_code=302)
+
+    login = (username or "").strip()
+    remote = request.client.host if request.client and request.client.host else "unknown"
+    rate_key = f"{remote}:{login.lower()}"
+    if _check_login_rate_limit(rate_key):
+        return RedirectResponse(url="/login?error=rate_limit", status_code=302)
+
+    valid_password = AUTH_USERS.get(login)
+    if not valid_password or not secrets.compare_digest(valid_password, password or ""):
+        _register_login_failure(rate_key)
+        return RedirectResponse(url="/login?error=1", status_code=302)
+
+    _clear_login_failures(rate_key)
+    expires_at = int(time.time()) + AUTH_SESSION_HOURS * 3600
+    token = _sign_auth_payload(login, expires_at)
+    response = RedirectResponse(url="/", status_code=302)
+    response.set_cookie(
+        AUTH_COOKIE_NAME,
+        token,
+        max_age=AUTH_SESSION_HOURS * 3600,
+        httponly=True,
+        samesite="lax",
+        secure=AUTH_COOKIE_SECURE,
+    )
+    return response
+
+
+@app.post("/logout", response_class=RedirectResponse)
+async def logout_post(request: Request):
+    if not _require_same_origin(request):
+        return RedirectResponse(url="/login?error=csrf", status_code=302)
+    response = RedirectResponse(url="/login", status_code=302)
+    response.delete_cookie(AUTH_COOKIE_NAME)
+    return response
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, account_id: Optional[int] = None, window: Optional[str] = None):
+    auth_check = _require_auth(request)
+    if isinstance(auth_check, RedirectResponse):
+        return auth_check
     try:
         return await _index_impl(request, account_id, window)
     except Exception as e:
-        tb = html.escape(traceback.format_exc())
+        if APP_DEBUG:
+            tb = html.escape(traceback.format_exc())
+            body = f'<h1>Ошибка</h1><pre style="white-space:pre-wrap;background:#0f172a;padding:1rem;border-radius:8px;">{tb}</pre>'
+        else:
+            body = '<h1>Ошибка</h1><p>Внутренняя ошибка сервера. Проверьте логи.</p>'
         return HTMLResponse(
-            content=f'<html><body style="font-family:sans-serif;padding:2rem;background:#1e293b;color:#e2e8f0;">'
-            f'<h1>Ошибка</h1><pre style="white-space:pre-wrap;background:#0f172a;padding:1rem;border-radius:8px;">{tb}</pre>'
-            f'<p><a href="/" style="color:#94a3b8;">На главную</a></p></body></html>',
+            content=f'<html><body style="font-family:sans-serif;padding:2rem;background:#1e293b;color:#e2e8f0;">{body}<p><a href="/" style="color:#94a3b8;">На главную</a></p></body></html>',
             status_code=500,
         )
 
@@ -406,6 +637,7 @@ async def _index_impl(request: Request, account_id: Optional[int], window: Optio
         "index.html",
         {
             "request": request,
+            "is_authenticated": bool(_get_current_user(request)),
             "accounts": accounts,
             "groups": groups,
             "window_list": WINDOWS,
@@ -438,8 +670,11 @@ async def _index_impl(request: Request, account_id: Optional[int], window: Optio
 
 
 @app.get("/account/{account_id}/balance")
-async def api_balance(account_id: int):
+async def api_balance(request: Request, account_id: int):
     """JSON: актуальный баланс для аккаунта (для кнопки и автообновления)."""
+    auth_check = _require_auth(request)
+    if isinstance(auth_check, RedirectResponse):
+        return {"error": "unauthorized"}
     acc = get_account(account_id)
     if not acc:
         return {"error": "account not found"}
@@ -467,6 +702,8 @@ async def withdraw(
     cvu: str = Form(""),
     destination: str = Form(""),
     amount: str = Form(...),
+    auto_total_amount: str = Form(""),
+    auto_chunk_amount: str = Form(""),
     concept: str = Form("VARIOS"),
     comments: str = Form("Varios (VAR)"),
     alias: str = Form(""),
@@ -474,80 +711,130 @@ async def withdraw(
     name: str = Form(""),
     bank: str = Form(""),
 ):
+    auth_check = _require_auth(request)
+    if isinstance(auth_check, RedirectResponse):
+        return auth_check
+    if not _require_same_origin(request):
+        return RedirectResponse(url=f"/?account_id={account_id}&error=csrf", status_code=302)
     acc = get_account(account_id)
     if not acc:
         return RedirectResponse(url="/", status_code=302)
-    try:
-        amt = float(amount.replace(",", "."))
-    except ValueError:
+
+    single_amount = _parse_amount_input(amount)
+    if single_amount is None or single_amount <= 0:
         return RedirectResponse(url=f"/?account_id={account_id}&error=invalid_amount", status_code=302)
-    if amt <= 0:
+
+    total_target = _parse_amount_input(auto_total_amount)
+    chunk_amount = _parse_amount_input(auto_chunk_amount)
+    if total_target is not None and total_target <= 0:
+        return RedirectResponse(url=f"/?account_id={account_id}&error=invalid_auto_total", status_code=302)
+    if chunk_amount is not None and chunk_amount <= 0:
+        return RedirectResponse(url=f"/?account_id={account_id}&error=invalid_auto_chunk", status_code=302)
+
+    is_auto = total_target is not None
+    if is_auto and chunk_amount is None:
+        chunk_amount = single_amount
+    current_chunk = chunk_amount if is_auto else single_amount
+    if not current_chunk or current_chunk <= 0:
         return RedirectResponse(url=f"/?account_id={account_id}&error=invalid_amount", status_code=302)
+
     dest = (destination or cvu).strip()
     if not dest:
         return RedirectResponse(url=f"/?account_id={account_id}&error=no_destination", status_code=302)
-    try:
+
+    doc_clean = (document or "").strip().replace("-", "").replace(" ", "")
+    if acc["bank_type"] == "universalcoins" and (not doc_clean or len(doc_clean) < 10):
+        return RedirectResponse(url=f"/?account_id={account_id}&error=document_required", status_code=302)
+
+    def perform_withdraw(withdraw_amount: float):
         if acc["bank_type"] == "universalcoins":
-            doc_clean = (document or "").strip().replace("-", "").replace(" ", "")
-            if not doc_clean or len(doc_clean) < 10:
-                return RedirectResponse(
-                    url=f"/?account_id={account_id}&error=document_required",
-                    status_code=302,
-                )
-            result = driver_withdraw(
+            return driver_withdraw(
                 acc["bank_type"],
                 acc["credentials"],
                 cvu_recipient=dest,
-                amount=amt,
+                amount=withdraw_amount,
                 concept=concept,
                 alias_recipient=alias.strip() or None,
                 document_recipient=doc_clean,
                 name_recipient=name.strip() or None,
                 bank_recipient=bank.strip() or None,
             )
+        return driver_withdraw(
+            acc["bank_type"],
+            acc["credentials"],
+            destination=dest,
+            amount=withdraw_amount,
+            comments=comments,
+        )
+
+    def extract_tid(result: dict) -> Optional[str]:
+        if acc["bank_type"] != "personalpay" or not isinstance(result, dict):
+            return None
+        tid = _find_32char_hex_id(result)
+        if tid:
+            return tid
+        raw = (
+            result.get("transactionId")
+            or result.get("id")
+            or (result.get("transference") or {}).get("id")
+            or (result.get("data") or {}).get("transactionId")
+        )
+        if raw:
+            raw = str(raw).strip()
+            if "-" not in raw and len(raw) == 32 and all(c in "0123456789ABCDEFabcdef" for c in raw):
+                return raw
+        return None
+
+    sent_total = Decimal("0")
+    sent_count = 0
+    last_tid = None
+    try:
+        if is_auto:
+            remaining = total_target
+            while remaining and remaining > 0:
+                part = min(current_chunk, remaining)
+                if sent_count >= AUTO_WITHDRAW_MAX_PARTS:
+                    return RedirectResponse(url=f"/?account_id={account_id}&error=auto_parts_limit", status_code=302)
+                result = perform_withdraw(float(part))
+                sent_total += part
+                sent_count += 1
+                remaining = remaining - part
+                maybe_tid = extract_tid(result)
+                if maybe_tid:
+                    last_tid = maybe_tid
         else:
-            result = driver_withdraw(
-                acc["bank_type"],
-                acc["credentials"],
-                destination=dest,
-                amount=amt,
-                comments=comments,
-            )
+            result = perform_withdraw(float(single_amount))
+            sent_total = single_amount
+            sent_count = 1
+            last_tid = extract_tid(result)
     except Exception as e:
         err_msg = str(e)
         if any(x in err_msg.lower() for x in ("rechazad", "rejected", "rechazo", "denied", "denegad")):
             error_param = "rejected_by_bank"
         else:
             error_param = quote(err_msg[:200], safe="")
-        return RedirectResponse(
-            url=f"/?account_id={account_id}&error={error_param}",
-            status_code=302,
-        )
-    tid = None
-    if acc["bank_type"] == "personalpay" and isinstance(result, dict):
-        tid = _find_32char_hex_id(result)
-        if not tid:
-            raw = (
-                result.get("transactionId")
-                or result.get("id")
-                or (result.get("transference") or {}).get("id")
-                or (result.get("data") or {}).get("transactionId")
-            )
-            if raw:
-                raw = str(raw).strip()
-                if "-" not in raw and len(raw) == 32 and all(c in "0123456789ABCDEFabcdef" for c in raw):
-                    tid = raw
-    if tid:
-        return RedirectResponse(url=f"/?account_id={account_id}&success=1&transaction_id={tid}", status_code=302)
-    return RedirectResponse(url=f"/?account_id={account_id}&success=1", status_code=302)
+        return RedirectResponse(url=f"/?account_id={account_id}&error={error_param}", status_code=302)
+
+    if last_tid and not is_auto:
+        return RedirectResponse(url=f"/account/{account_id}/receipt?transaction_id={last_tid}&from_withdraw=1", status_code=302)
+
+    done = _format_amount(sent_total)
+    return RedirectResponse(
+        url=f"/?account_id={account_id}&success=1&auto_done={done}&auto_count={sent_count}",
+        status_code=302,
+    )
 
 
 @app.get("/add", response_class=HTMLResponse)
 async def add_account_page(request: Request, window: str = ""):
+    auth_check = _require_auth(request)
+    if isinstance(auth_check, RedirectResponse):
+        return auth_check
     return templates.TemplateResponse(
         "add_account.html",
         {
             "request": request,
+            "is_authenticated": bool(_get_current_user(request)),
             "bank_types": BANK_TYPES,
             "window_list": WINDOWS,
             "preselect_window": window or "glazars",
@@ -690,6 +977,7 @@ def _parse_credentials(raw: str) -> dict:
 
 @app.post("/add", response_class=RedirectResponse)
 async def add_account_post(
+    request: Request,
     bank_type: str = Form(...),
     label: str = Form(...),
     credentials_json: str = Form("{}"),
@@ -701,6 +989,11 @@ async def add_account_post(
     proxy_raw: str = Form(""),
     window: str = Form("glazars"),
 ):
+    auth_check = _require_auth(request)
+    if isinstance(auth_check, RedirectResponse):
+        return auth_check
+    if not _require_same_origin(request):
+        return RedirectResponse(url="/add?error=csrf", status_code=302)
     if bank_type not in BANK_TYPES:
         return RedirectResponse(url="/add?error=invalid_bank", status_code=302)
     if window not in (w[0] for w in WINDOWS):
@@ -726,6 +1019,9 @@ async def add_account_post(
 
 @app.get("/account/{account_id}/edit", response_class=HTMLResponse)
 async def edit_account_page(request: Request, account_id: int):
+    auth_check = _require_auth(request)
+    if isinstance(auth_check, RedirectResponse):
+        return auth_check
     acc = get_account(account_id)
     if not acc:
         return RedirectResponse(url="/", status_code=302)
@@ -734,6 +1030,7 @@ async def edit_account_page(request: Request, account_id: int):
         "edit_account.html",
         {
             "request": request,
+            "is_authenticated": bool(_get_current_user(request)),
             "account": acc,
             "window_list": WINDOWS,
             "accounts": list_accounts(),
@@ -748,6 +1045,7 @@ async def edit_account_page(request: Request, account_id: int):
 
 @app.post("/account/{account_id}/edit", response_class=RedirectResponse)
 async def edit_account_post(
+    request: Request,
     account_id: int,
     label: str = Form(...),
     credentials_json: str = Form("{}"),
@@ -759,6 +1057,11 @@ async def edit_account_post(
     proxy_raw: str = Form(""),
     window: str = Form(""),
 ):
+    auth_check = _require_auth(request)
+    if isinstance(auth_check, RedirectResponse):
+        return auth_check
+    if not _require_same_origin(request):
+        return RedirectResponse(url=f"/account/{account_id}/edit?error=csrf", status_code=302)
     acc = get_account(account_id)
     if not acc:
         return RedirectResponse(url="/", status_code=302)
@@ -787,6 +1090,9 @@ async def edit_account_post(
 @app.get("/account/{account_id}/receipt", response_class=HTMLResponse)
 async def receipt(request: Request, account_id: int, transaction_id: str = ""):
     """Детали перевода (чек) Personal Pay по transactionId."""
+    auth_check = _require_auth(request)
+    if isinstance(auth_check, RedirectResponse):
+        return auth_check
     acc = get_account(account_id)
     if not acc or acc["bank_type"] != "personalpay" or not transaction_id.strip():
         return RedirectResponse(url=f"/?account_id={account_id}", status_code=302)
@@ -797,6 +1103,7 @@ async def receipt(request: Request, account_id: int, transaction_id: str = ""):
             "receipt.html",
             {
                 "request": request,
+                "is_authenticated": bool(_get_current_user(request)),
                 "account": acc,
                 "transaction_id": transaction_id,
                 "error": str(e),
@@ -866,11 +1173,13 @@ async def receipt(request: Request, account_id: int, transaction_id: str = ""):
     tx_type = (transference or {}).get("transactionType") or ""
     is_outgoing = "output" in tx_type.lower() or "out" in tx_type.lower() or (transference or {}).get("title", "").lower().startswith("enviaste")
     amount_val = (transference or {}).get("amount")
-    amount_display = f"-{amount_val}" if (is_outgoing and amount_val is not None and float(amount_val) > 0) else (amount_val if amount_val is not None else "")
+    amount_num = _parse_amount_input(str(amount_val)) if amount_val is not None else None
+    amount_display = f"-{amount_val}" if (is_outgoing and amount_num is not None and amount_num > 0) else (amount_val if amount_val is not None else "")
     return templates.TemplateResponse(
         "receipt.html",
         {
             "request": request,
+            "is_authenticated": bool(_get_current_user(request)),
             "account": acc,
             "transaction_id": transaction_id,
             "error": None,
@@ -887,7 +1196,12 @@ async def receipt(request: Request, account_id: int, transaction_id: str = ""):
 
 
 @app.post("/account/{account_id}/delete", response_class=RedirectResponse)
-async def delete_account(account_id: int, redirect_window: Optional[str] = Form(None)):
+async def delete_account(request: Request, account_id: int, redirect_window: Optional[str] = Form(None)):
+    auth_check = _require_auth(request)
+    if isinstance(auth_check, RedirectResponse):
+        return auth_check
+    if not _require_same_origin(request):
+        return RedirectResponse(url=f"/?account_id={account_id}&error=csrf", status_code=302)
     db_delete_account(account_id)
     if redirect_window and redirect_window in [w[0] for w in WINDOWS]:
         return RedirectResponse(url=f"/?window={redirect_window}", status_code=302)
@@ -896,6 +1210,9 @@ async def delete_account(account_id: int, redirect_window: Optional[str] = Form(
 
 @app.get("/account/{account_id}/discover", response_class=HTMLResponse)
 async def discover(request: Request, account_id: int, destination: str = ""):
+    auth_check = _require_auth(request)
+    if isinstance(auth_check, RedirectResponse):
+        return HTMLResponse(content="{}", media_type="application/json")
     acc = get_account(account_id)
     if not acc or acc["bank_type"] != "personalpay" or not destination.strip():
         return HTMLResponse(content="{}", media_type="application/json")

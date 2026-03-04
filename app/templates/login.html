@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Вход — Banks Dashboard{% endblock %}
+
+{% block sidebar %}{% endblock %}
+
+{% block content %}
+<section class="card login-card">
+  <h2>Вход в дашборд</h2>
+  {% if not auth_enabled %}
+  <div class="alert alert-error">Авторизация не настроена. Укажите переменную окружения <code>DASHBOARD_USERS</code> в формате <code>user:pass,user2:pass2</code>.</div>
+  {% endif %}
+  {% if request.query_params.get('error') == '1' %}
+  <div class="alert alert-error">Неверный логин или пароль.</div>
+  {% elif request.query_params.get('error') == 'rate_limit' %}
+  <div class="alert alert-error">Слишком много попыток входа. Подождите и попробуйте снова.</div>
+  {% elif request.query_params.get('error') == 'csrf' %}
+  <div class="alert alert-error">Запрос отклонён политикой безопасности. Обновите страницу и повторите.</div>
+  {% endif %}
+  <form method="post" action="/login" class="form">
+    <div class="form-row">
+      <label for="username">Логин</label>
+      <input id="username" name="username" type="text" autocomplete="username" required />
+    </div>
+    <div class="form-row">
+      <label for="password">Пароль</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+    </div>
+    <button type="submit" class="btn-primary" {% if not auth_enabled %}disabled{% endif %}>Войти</button>
+  </form>
+</section>
+{% endblock %}

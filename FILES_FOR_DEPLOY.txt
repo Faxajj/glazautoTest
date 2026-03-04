@@ -21,8 +21,6 @@ app/drivers/universalcoins.py
 
 docs/PERSONALPAY_403_FIX.md
 
-# Папку scripts можно не заливать, если не нужны утилиты:
-scripts/reset_and_add_pp.py
 
 VPS_SETUP_glazauto.md
 СЕРВЕР_И_ДОМЕН.md

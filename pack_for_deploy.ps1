@@ -28,7 +28,6 @@ $toPack = @(
     "app\drivers\personalpay.py",
     "app\drivers\universalcoins.py",
     "docs\PERSONALPAY_403_FIX.md",
-    "scripts\reset_and_add_pp.py",
     "VPS_SETUP_glazauto.md",
     "СЕРВЕР_И_ДОМЕН.md"
 )
