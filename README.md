@@ -45,6 +45,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8015
 - **Баланс:** на странице аккаунта есть кнопка «↻ Обновить» и автообновление раз в 30 сек.
 - Если Personal Pay отдаёт 403 — см. **docs/PERSONALPAY_403_FIX.md**.
 - Если GitHub PR пишет про `no common history` — см. **docs/PR_HISTORY_FIX.md**.
+- Если в окне **Resolve conflicts** видны `<<<<<<< ======= >>>>>>>`, это может быть UI GitHub, а не код в ветке; проверь `python scripts/check_conflict_markers.py`.
 
 
 ## Автовывод
