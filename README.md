@@ -69,3 +69,14 @@ uvicorn app.main:app --host 0.0.0.0 --port 8015
 ```bash
 PP_DEVICE_ID="..." PP_AUTH_TOKEN="..." PP_EMAIL="user@example.com" python scripts/reset_and_add_pp.py
 ```
+
+
+### Проверка merge-конфликтов
+
+Перед коммитом можно запустить:
+
+```bash
+python scripts/check_conflict_markers.py
+```
+
+Скрипт проверяет отслеживаемые файлы и падает, если найдены строки вида `<<<<<<<`, `=======`, `>>>>>>>`.
