@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
+<<<<<<< HEAD
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}Banks Dashboard{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css?v=6" />
@@ -17,6 +18,15 @@
       <button type="submit" class="btn-logout">Выйти</button>
     </form>
     {% endif %}
+=======
+  <title>{% block title %}Banks Dashboard{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css?v=5" />
+</head>
+<body>
+  <header class="header">
+    <h1>Banks Dashboard</h1>
+    <p class="header-sub">Несколько аккаунтов — переключение в один клик</p>
+>>>>>>> main
   </header>
   <div class="layout">
     {% block sidebar %}
@@ -45,6 +55,7 @@
       <a href="/add" class="btn-add">+ Добавить аккаунт</a>
       <script>
         (function() {
+<<<<<<< HEAD
           var balanceEls = Array.from(document.querySelectorAll('.sidebar-balance[data-account-id]'));
           var cache = {};
           var amountFmt = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -72,13 +83,33 @@
           }
           function refreshAll() {
             if (document.visibilityState === 'hidden') return;
+=======
+          var balanceEls = document.querySelectorAll('.sidebar-balance[data-account-id]');
+          function fetchOne(id, el) {
+            fetch('/account/' + id + '/balance')
+              .then(function(r) { return r.json(); })
+              .then(function(d) {
+                if (d.error) el.textContent = '—'; else el.textContent = (typeof d.balance === 'number' ? d.balance.toFixed(2) : d.balance) + ' ARS';
+              })
+              .catch(function() { el.textContent = '—'; });
+          }
+          balanceEls.forEach(function(el) {
+            var id = el.getAttribute('data-account-id');
+            if (id) fetchOne(id, el);
+          });
+          setInterval(function() {
+>>>>>>> main
             balanceEls.forEach(function(el) {
               var id = el.getAttribute('data-account-id');
               if (id) fetchOne(id, el);
             });
+<<<<<<< HEAD
           }
           refreshAll();
           setInterval(refreshAll, 45000);
+=======
+          }, 45000);
+>>>>>>> main
         })();
         (function() {
           var key = 'banks-dashboard-windows-collapsed';
@@ -91,11 +122,20 @@
           function saveState(state) {
             try { localStorage.setItem(key, JSON.stringify(state)); } catch (e) {}
           }
+<<<<<<< HEAD
           var state = loadState();
           document.querySelectorAll('.nav-window').forEach(function(w) {
             var slug = w.getAttribute('data-window');
             var toggle = w.querySelector('.nav-window-toggle-btn');
             if (!toggle) return;
+=======
+          document.querySelectorAll('.nav-window').forEach(function(w) {
+            var slug = w.getAttribute('data-window');
+            var body = w.querySelector('.nav-window-body');
+            var toggle = w.querySelector('.nav-window-toggle-btn');
+            if (!toggle) return;
+            var state = loadState();
+>>>>>>> main
             if (state[slug]) {
               w.classList.add('nav-window--collapsed');
               toggle.textContent = '▶';

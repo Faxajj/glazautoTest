@@ -2,12 +2,17 @@
 Единый дашборд банков: несколько аккаунтов, переключение между ними.
 """
 import base64
+<<<<<<< HEAD
 import hashlib
 import html
 import hmac
 import json
 import os
 import secrets
+=======
+import html
+import json
+>>>>>>> main
 import time
 import traceback
 from typing import Optional, Tuple
@@ -15,7 +20,10 @@ from urllib.parse import quote
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+<<<<<<< HEAD
 from fastapi.middleware.gzip import GZipMiddleware
+=======
+>>>>>>> main
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -41,13 +49,17 @@ from app.drivers.personalpay import (
 )
 
 app = FastAPI(title="Banks Dashboard — несколько аккаунтов")
+<<<<<<< HEAD
 app.add_middleware(GZipMiddleware, minimum_size=1024)
+=======
+>>>>>>> main
 
 init_db()
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+<<<<<<< HEAD
 AUTH_COOKIE_NAME = "dashboard_auth"
 AUTH_SESSION_HOURS = int(os.getenv("DASHBOARD_AUTH_SESSION_HOURS", "12"))
 AUTH_SECRET = os.getenv("DASHBOARD_AUTH_SECRET", "change-me-in-production")
@@ -114,10 +126,13 @@ def _require_auth(request: Request):
         return user
     return RedirectResponse(url="/login", status_code=302)
 
+=======
+>>>>>>> main
 
 def _tojson(obj, indent=2):
     return json.dumps(obj, indent=indent, ensure_ascii=False)
 
+<<<<<<< HEAD
 def _format_amount(value, decimals: int = 2, trim_trailing_zeros: bool = True) -> str:
     """Форматирует число с разделителями разрядов: 130805 -> 130.805, 130805.5 -> 130.805,50."""
     if value is None:
@@ -166,6 +181,10 @@ def _parse_amount_input(value: str) -> Optional[float]:
         return None
 templates.env.filters["tojson"] = _tojson
 templates.env.filters["fmt_amount"] = _format_amount
+=======
+
+templates.env.filters["tojson"] = _tojson
+>>>>>>> main
 
 CONCEPTS_UC = [
     ("VARIOS", "VARIOS (разное)"),
@@ -446,6 +465,7 @@ def _window_name(slug: str) -> str:
     return slug
 
 
+<<<<<<< HEAD
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     if _is_auth_enabled() and _get_current_user(request):
@@ -493,6 +513,10 @@ async def index(request: Request, account_id: Optional[int] = None, window: Opti
     auth_check = _require_auth(request)
     if isinstance(auth_check, RedirectResponse):
         return auth_check
+=======
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request, account_id: Optional[int] = None, window: Optional[str] = None):
+>>>>>>> main
     try:
         return await _index_impl(request, account_id, window)
     except Exception as e:
@@ -569,7 +593,10 @@ async def _index_impl(request: Request, account_id: Optional[int], window: Optio
         "index.html",
         {
             "request": request,
+<<<<<<< HEAD
             "is_authenticated": bool(_get_current_user(request)),
+=======
+>>>>>>> main
             "accounts": accounts,
             "groups": groups,
             "window_list": WINDOWS,
@@ -602,11 +629,16 @@ async def _index_impl(request: Request, account_id: Optional[int], window: Optio
 
 
 @app.get("/account/{account_id}/balance")
+<<<<<<< HEAD
 async def api_balance(request: Request, account_id: int):
     """JSON: актуальный баланс для аккаунта (для кнопки и автообновления)."""
     auth_check = _require_auth(request)
     if isinstance(auth_check, RedirectResponse):
         return {"error": "unauthorized"}
+=======
+async def api_balance(account_id: int):
+    """JSON: актуальный баланс для аккаунта (для кнопки и автообновления)."""
+>>>>>>> main
     acc = get_account(account_id)
     if not acc:
         return {"error": "account not found"}
@@ -634,8 +666,11 @@ async def withdraw(
     cvu: str = Form(""),
     destination: str = Form(""),
     amount: str = Form(...),
+<<<<<<< HEAD
     auto_total_amount: str = Form(""),
     auto_chunk_amount: str = Form(""),
+=======
+>>>>>>> main
     concept: str = Form("VARIOS"),
     comments: str = Form("Varios (VAR)"),
     alias: str = Form(""),
@@ -643,6 +678,7 @@ async def withdraw(
     name: str = Form(""),
     bank: str = Form(""),
 ):
+<<<<<<< HEAD
     auth_check = _require_auth(request)
     if isinstance(auth_check, RedirectResponse):
         return auth_check
@@ -683,12 +719,40 @@ async def withdraw(
                 acc["credentials"],
                 cvu_recipient=dest,
                 amount=withdraw_amount,
+=======
+    acc = get_account(account_id)
+    if not acc:
+        return RedirectResponse(url="/", status_code=302)
+    try:
+        amt = float(amount.replace(",", "."))
+    except ValueError:
+        return RedirectResponse(url=f"/?account_id={account_id}&error=invalid_amount", status_code=302)
+    if amt <= 0:
+        return RedirectResponse(url=f"/?account_id={account_id}&error=invalid_amount", status_code=302)
+    dest = (destination or cvu).strip()
+    if not dest:
+        return RedirectResponse(url=f"/?account_id={account_id}&error=no_destination", status_code=302)
+    try:
+        if acc["bank_type"] == "universalcoins":
+            doc_clean = (document or "").strip().replace("-", "").replace(" ", "")
+            if not doc_clean or len(doc_clean) < 10:
+                return RedirectResponse(
+                    url=f"/?account_id={account_id}&error=document_required",
+                    status_code=302,
+                )
+            result = driver_withdraw(
+                acc["bank_type"],
+                acc["credentials"],
+                cvu_recipient=dest,
+                amount=amt,
+>>>>>>> main
                 concept=concept,
                 alias_recipient=alias.strip() or None,
                 document_recipient=doc_clean,
                 name_recipient=name.strip() or None,
                 bank_recipient=bank.strip() or None,
             )
+<<<<<<< HEAD
         return driver_withdraw(
             acc["bank_type"],
             acc["credentials"],
@@ -735,12 +799,23 @@ async def withdraw(
             sent_total = single_amount
             sent_count = 1
             last_tid = extract_tid(result)
+=======
+        else:
+            result = driver_withdraw(
+                acc["bank_type"],
+                acc["credentials"],
+                destination=dest,
+                amount=amt,
+                comments=comments,
+            )
+>>>>>>> main
     except Exception as e:
         err_msg = str(e)
         if any(x in err_msg.lower() for x in ("rechazad", "rejected", "rechazo", "denied", "denegad")):
             error_param = "rejected_by_bank"
         else:
             error_param = quote(err_msg[:200], safe="")
+<<<<<<< HEAD
         return RedirectResponse(url=f"/?account_id={account_id}&error={error_param}", status_code=302)
 
     if last_tid and not is_auto:
@@ -751,18 +826,47 @@ async def withdraw(
         url=f"/?account_id={account_id}&success=1&auto_done={done}&auto_count={sent_count}",
         status_code=302,
     )
+=======
+        return RedirectResponse(
+            url=f"/?account_id={account_id}&error={error_param}",
+            status_code=302,
+        )
+    tid = None
+    if acc["bank_type"] == "personalpay" and isinstance(result, dict):
+        tid = _find_32char_hex_id(result)
+        if not tid:
+            raw = (
+                result.get("transactionId")
+                or result.get("id")
+                or (result.get("transference") or {}).get("id")
+                or (result.get("data") or {}).get("transactionId")
+            )
+            if raw:
+                raw = str(raw).strip()
+                if "-" not in raw and len(raw) == 32 and all(c in "0123456789ABCDEFabcdef" for c in raw):
+                    tid = raw
+    if tid:
+        return RedirectResponse(url=f"/?account_id={account_id}&success=1&transaction_id={tid}", status_code=302)
+    return RedirectResponse(url=f"/?account_id={account_id}&success=1", status_code=302)
+>>>>>>> main
 
 
 @app.get("/add", response_class=HTMLResponse)
 async def add_account_page(request: Request, window: str = ""):
+<<<<<<< HEAD
     auth_check = _require_auth(request)
     if isinstance(auth_check, RedirectResponse):
         return auth_check
+=======
+>>>>>>> main
     return templates.TemplateResponse(
         "add_account.html",
         {
             "request": request,
+<<<<<<< HEAD
             "is_authenticated": bool(_get_current_user(request)),
+=======
+>>>>>>> main
             "bank_types": BANK_TYPES,
             "window_list": WINDOWS,
             "preselect_window": window or "glazars",
@@ -905,7 +1009,10 @@ def _parse_credentials(raw: str) -> dict:
 
 @app.post("/add", response_class=RedirectResponse)
 async def add_account_post(
+<<<<<<< HEAD
     request: Request,
+=======
+>>>>>>> main
     bank_type: str = Form(...),
     label: str = Form(...),
     credentials_json: str = Form("{}"),
@@ -917,9 +1024,12 @@ async def add_account_post(
     proxy_raw: str = Form(""),
     window: str = Form("glazars"),
 ):
+<<<<<<< HEAD
     auth_check = _require_auth(request)
     if isinstance(auth_check, RedirectResponse):
         return auth_check
+=======
+>>>>>>> main
     if bank_type not in BANK_TYPES:
         return RedirectResponse(url="/add?error=invalid_bank", status_code=302)
     if window not in (w[0] for w in WINDOWS):
@@ -945,9 +1055,12 @@ async def add_account_post(
 
 @app.get("/account/{account_id}/edit", response_class=HTMLResponse)
 async def edit_account_page(request: Request, account_id: int):
+<<<<<<< HEAD
     auth_check = _require_auth(request)
     if isinstance(auth_check, RedirectResponse):
         return auth_check
+=======
+>>>>>>> main
     acc = get_account(account_id)
     if not acc:
         return RedirectResponse(url="/", status_code=302)
@@ -956,7 +1069,10 @@ async def edit_account_page(request: Request, account_id: int):
         "edit_account.html",
         {
             "request": request,
+<<<<<<< HEAD
             "is_authenticated": bool(_get_current_user(request)),
+=======
+>>>>>>> main
             "account": acc,
             "window_list": WINDOWS,
             "accounts": list_accounts(),
@@ -971,7 +1087,10 @@ async def edit_account_page(request: Request, account_id: int):
 
 @app.post("/account/{account_id}/edit", response_class=RedirectResponse)
 async def edit_account_post(
+<<<<<<< HEAD
     request: Request,
+=======
+>>>>>>> main
     account_id: int,
     label: str = Form(...),
     credentials_json: str = Form("{}"),
@@ -983,9 +1102,12 @@ async def edit_account_post(
     proxy_raw: str = Form(""),
     window: str = Form(""),
 ):
+<<<<<<< HEAD
     auth_check = _require_auth(request)
     if isinstance(auth_check, RedirectResponse):
         return auth_check
+=======
+>>>>>>> main
     acc = get_account(account_id)
     if not acc:
         return RedirectResponse(url="/", status_code=302)
@@ -1014,9 +1136,12 @@ async def edit_account_post(
 @app.get("/account/{account_id}/receipt", response_class=HTMLResponse)
 async def receipt(request: Request, account_id: int, transaction_id: str = ""):
     """Детали перевода (чек) Personal Pay по transactionId."""
+<<<<<<< HEAD
     auth_check = _require_auth(request)
     if isinstance(auth_check, RedirectResponse):
         return auth_check
+=======
+>>>>>>> main
     acc = get_account(account_id)
     if not acc or acc["bank_type"] != "personalpay" or not transaction_id.strip():
         return RedirectResponse(url=f"/?account_id={account_id}", status_code=302)
@@ -1027,7 +1152,10 @@ async def receipt(request: Request, account_id: int, transaction_id: str = ""):
             "receipt.html",
             {
                 "request": request,
+<<<<<<< HEAD
                 "is_authenticated": bool(_get_current_user(request)),
+=======
+>>>>>>> main
                 "account": acc,
                 "transaction_id": transaction_id,
                 "error": str(e),
@@ -1102,7 +1230,10 @@ async def receipt(request: Request, account_id: int, transaction_id: str = ""):
         "receipt.html",
         {
             "request": request,
+<<<<<<< HEAD
             "is_authenticated": bool(_get_current_user(request)),
+=======
+>>>>>>> main
             "account": acc,
             "transaction_id": transaction_id,
             "error": None,
@@ -1119,10 +1250,14 @@ async def receipt(request: Request, account_id: int, transaction_id: str = ""):
 
 
 @app.post("/account/{account_id}/delete", response_class=RedirectResponse)
+<<<<<<< HEAD
 async def delete_account(request: Request, account_id: int, redirect_window: Optional[str] = Form(None)):
     auth_check = _require_auth(request)
     if isinstance(auth_check, RedirectResponse):
         return auth_check
+=======
+async def delete_account(account_id: int, redirect_window: Optional[str] = Form(None)):
+>>>>>>> main
     db_delete_account(account_id)
     if redirect_window and redirect_window in [w[0] for w in WINDOWS]:
         return RedirectResponse(url=f"/?window={redirect_window}", status_code=302)
@@ -1131,9 +1266,12 @@ async def delete_account(request: Request, account_id: int, redirect_window: Opt
 
 @app.get("/account/{account_id}/discover", response_class=HTMLResponse)
 async def discover(request: Request, account_id: int, destination: str = ""):
+<<<<<<< HEAD
     auth_check = _require_auth(request)
     if isinstance(auth_check, RedirectResponse):
         return HTMLResponse(content="{}", media_type="application/json")
+=======
+>>>>>>> main
     acc = get_account(account_id)
     if not acc or acc["bank_type"] != "personalpay" or not destination.strip():
         return HTMLResponse(content="{}", media_type="application/json")

@@ -8,10 +8,13 @@
   <p class="meta">Transaction ID: <code>{{ transaction_id }}</code></p>
   <p><a href="/?account_id={{ account.id }}">← Назад к аккаунту</a></p>
 
+<<<<<<< HEAD
   {% if request.query_params.get('from_withdraw') == '1' %}
   <div class="alert alert-success">Операция успешно отправлена. Ниже отображается оригинальный чек из приложения.</div>
   {% endif %}
 
+=======
+>>>>>>> main
   {% if error %}
   <div class="alert alert-error">
     {{ error }}
@@ -26,18 +29,30 @@
   {% elif transference %}
   <div class="receipt-box receipt-card">
     <h3 class="receipt-card-title">{{ receipt_title|default(transference.get('title', 'Чек перевода')) }}</h3>
+<<<<<<< HEAD
     <p class="receipt-amount">Сумма: {{ (amount_display if amount_display != '' else transference.get('amount', '')) | fmt_amount }} ARS</p>
     <dl class="receipt-dl">
       {% for row in receipt_lines %}
       <dt>{{ row.label }}</dt>
       <dd>{% if row.label in ("Сумма", "Баланс") %}{{ row.value | fmt_amount }}{% else %}{{ row.value }}{% endif %}</dd>
+=======
+    <p class="receipt-amount">Сумма: {{ amount_display if amount_display != '' else transference.get('amount', '') }} ARS</p>
+    <dl class="receipt-dl">
+      {% for row in receipt_lines %}
+      <dt>{{ row.label }}</dt>
+      <dd>{{ row.value }}</dd>
+>>>>>>> main
       {% endfor %}
     </dl>
     {% if not receipt_lines %}
     <p class="meta">{{ transference.get('title', '') }}{% if transference.get('subject') %} — {{ transference.subject }}{% endif %}</p>
     <ul class="receipt-details">
       {% for d in (transference.get('details') or []) %}
+<<<<<<< HEAD
       <li>{{ d.get('label', '') }}: {% if (d.get('label', '')|lower) in ('monto', 'amount', 'balance') %}{{ d.get('value', d) | fmt_amount }}{% else %}{{ d.get('value', d) }}{% endif %}</li>
+=======
+      <li>{{ d.get('label', '') }}: {{ d.get('value', d) }}</li>
+>>>>>>> main
       {% endfor %}
     </ul>
     {% endif %}

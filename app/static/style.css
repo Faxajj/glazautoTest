@@ -808,6 +808,7 @@ textarea:focus {
   margin-left: auto;
   cursor: help;
 }
+<<<<<<< HEAD
 
 :root {
   --bg: #0b1120;
@@ -889,3 +890,5 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
 }
+=======
+>>>>>>> main
