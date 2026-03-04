@@ -12,6 +12,25 @@ py -m uvicorn app.main:app --host 127.0.0.1 --port 8015
 
 Открой в браузере: **http://127.0.0.1:8015**
 
+## Авторизация в дашборде (без регистрации)
+
+Регистрации пользователей нет. Доступ выдают администраторы заранее через переменные окружения:
+
+- `DASHBOARD_USERS` — список логин/пароль в формате `user1:pass1,user2:pass2`
+- `DASHBOARD_AUTH_SECRET` — секрет подписи cookie-сессии
+- `DASHBOARD_AUTH_SESSION_HOURS` — время жизни сессии в часах (по умолчанию `12`)
+- `DASHBOARD_AUTH_COOKIE_SECURE` — выставить `1`, если сайт работает по HTTPS (Secure cookie)
+
+Пример:
+
+```bash
+export DASHBOARD_USERS="admin:StrongPass123,operator:AnotherPass456"
+export DASHBOARD_AUTH_SECRET="change-this-secret"
+export DASHBOARD_AUTH_SESSION_HOURS="24"
+export DASHBOARD_AUTH_COOKIE_SECURE="0"  # для локального HTTP, для HTTPS -> 1
+uvicorn app.main:app --host 0.0.0.0 --port 8015
+```
+
 ## Как пользоваться
 
 1. **Добавить аккаунт** — кнопка «+ Добавить аккаунт». Выбери банк (UniversalCoins или Personal Pay), введи название и **Credentials (JSON)**.
@@ -25,3 +44,13 @@ py -m uvicorn app.main:app --host 127.0.0.1 --port 8015
 
 - **Баланс:** на странице аккаунта есть кнопка «↻ Обновить» и автообновление раз в 30 сек.
 - Если Personal Pay отдаёт 403 — см. **docs/PERSONALPAY_403_FIX.md**.
+
+
+## Автовывод
+
+В форме вывода можно включить режим автовывода:
+- укажи `Сумма одной выплаты` (например, 400000),
+- укажи `Автовывод: общий лимит` (например, 4000000),
+- опционально укажи `Автовывод: сумма одной части` (если пусто — берётся сумма одной выплаты).
+
+Система будет отправлять выплаты частями на один и тот же CVU/alias, пока суммарно не достигнет заданного лимита.
