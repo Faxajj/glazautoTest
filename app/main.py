@@ -19,16 +19,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.database import (
-    add_account as db_add_account,
-    accounts_by_window,
-    delete_account as db_delete_account,
-    get_account,
-    init_db,
-    list_accounts,
-    update_account as db_update_account,
-    WINDOWS,
-)
+
 from app.database import (
     add_account as db_add_account,
     accounts_by_window,
