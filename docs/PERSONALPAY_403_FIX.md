@@ -43,3 +43,11 @@
 ```
 
 Поддерживаются поля: `proxy` (для http+https сразу), `http_proxy`, `https_proxy`.
+В UI (добавление/редактирование аккаунта) прокси можно задать отдельными полями: тип, host, port, login, password.
+
+
+## 6. Важно для SOCKS5
+
+Для прокси `socks5://`/`socks5h://` в Python `requests` нужны SOCKS-зависимости (`requests[socks]` / `PySocks`).
+Если их нет, будет ошибка `Missing dependencies for SOCKS support`.
+

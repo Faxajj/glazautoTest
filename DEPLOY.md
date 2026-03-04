@@ -174,3 +174,20 @@ PORT=80 ./run_server.sh
 - **Personal Pay 403** — см. **docs/PERSONALPAY_403_FIX.md** (обновить токен в аккаунте).
 
 Удачи.
+
+## 7. Ручной деплой через bash (рекомендовано для последнего фикса SOCKS)
+
+Выполни на сервере в папке проекта:
+
+```bash
+cd ~/banks-dashboard
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+python -c "import socks,requests; print('socks ok; requests', requests.__version__)"
+chmod +x run_server.sh
+./run_server.sh
+```
+
+Если запускаешь через systemd/supervisor/cron — после `pip install -r requirements.txt` обязательно перезапусти процесс дашборда, иначе старый процесс останется без `PySocks`.

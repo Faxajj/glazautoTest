@@ -24,9 +24,35 @@
       <input id="label" name="label" type="text" required value="{{ account.label }}" />
     </div>
     <div class="form-row">
-      <label for="proxy_socks5">Прокси SOCKS5 (опционально, для Personal Pay)</label>
-      <input id="proxy_socks5" name="proxy_socks5" type="text" value="{{ (account.credentials.get('https_proxy') or account.credentials.get('proxy') or '') if account.credentials else '' }}" placeholder="135.106.40.29:63137:smY9hX1m:6vrTNk8q" />
-      <p class="form-hint">Форматы: <code>IP:PORT:USER:PASS</code>, <code>USER:PASS@IP:PORT</code> или <code>socks5h://...</code>.</p>
+      <label for="proxy_type">Прокси (опционально, для Personal Pay)</label>
+      <select id="proxy_type" name="proxy_type">
+        <option value="socks5h" {% if proxy_type == 'socks5h' %}selected{% endif %}>SOCKS5h (рекомендовано)</option>
+        <option value="socks5" {% if proxy_type == 'socks5' %}selected{% endif %}>SOCKS5</option>
+        <option value="http" {% if proxy_type == 'http' %}selected{% endif %}>HTTP</option>
+        <option value="https" {% if proxy_type == 'https' %}selected{% endif %}>HTTPS</option>
+      </select>
+      <p class="form-hint">Заполни отдельные поля (IP/Port/Login/Password). При необходимости можно вставить всё одной строкой ниже.</p>
+    </div>
+    <div class="form-row">
+      <label for="proxy_host">Proxy Host/IP</label>
+      <input id="proxy_host" name="proxy_host" type="text" value="{{ proxy_host }}" placeholder="135.106.40.29" />
+    </div>
+    <div class="form-row">
+      <label for="proxy_port">Proxy Port</label>
+      <input id="proxy_port" name="proxy_port" type="text" value="{{ proxy_port }}" placeholder="63137" />
+    </div>
+    <div class="form-row">
+      <label for="proxy_user">Proxy Login</label>
+      <input id="proxy_user" name="proxy_user" type="text" value="{{ proxy_user }}" placeholder="smY9hX1m" />
+    </div>
+    <div class="form-row">
+      <label for="proxy_password">Proxy Password</label>
+      <input id="proxy_password" name="proxy_password" type="text" value="{{ proxy_password }}" placeholder="6vrTNk8q" />
+    </div>
+    <div class="form-row">
+      <label for="proxy_raw">Или одной строкой (fallback)</label>
+      <input id="proxy_raw" name="proxy_raw" type="text" value="{{ proxy_raw }}" placeholder="135.106.40.29:63137:smY9hX1m:6vrTNk8q" />
+      <p class="form-hint">Текущее значение из credentials показано здесь.</p>
     </div>
     <div class="form-row">
       <label for="credentials_json">Credentials (JSON) *</label>
