@@ -2,17 +2,12 @@
 Единый дашборд банков: несколько аккаунтов, переключение между ними.
 """
 import base64
-<<<<<<< HEAD
 import hashlib
 import html
 import hmac
 import json
 import os
 import secrets
-=======
-import html
-import json
->>>>>>> main
 import time
 import traceback
 from typing import Optional, Tuple
@@ -20,13 +15,20 @@ from urllib.parse import quote
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-<<<<<<< HEAD
 from fastapi.middleware.gzip import GZipMiddleware
-=======
->>>>>>> main
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.database import (
+    add_account as db_add_account,
+    accounts_by_window,
+    delete_account as db_delete_account,
+    get_account,
+    init_db,
+    list_accounts,
+    update_account as db_update_account,
+    WINDOWS,
+)
 from app.database import (
     add_account as db_add_account,
     accounts_by_window,
