@@ -42,9 +42,20 @@
       <script>
         (function() {
           var els = document.querySelectorAll('.list-balance[data-account-id]');
+<<<<<<< HEAD
+          var amountFmt = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+          function formatAmount(v) {
+            var n = Number(v);
+            return Number.isFinite(n) ? amountFmt.format(n) : v;
+          }
+          function fetchOne(id, el) {
+            fetch('/account/' + id + '/balance').then(function(r) { return r.json(); }).then(function(d) {
+              if (d.error) el.textContent = '—'; else el.textContent = formatAmount(d.balance) + ' ARS';
+=======
           function fetchOne(id, el) {
             fetch('/account/' + id + '/balance').then(function(r) { return r.json(); }).then(function(d) {
               if (d.error) el.textContent = '—'; else el.textContent = (typeof d.balance === 'number' ? d.balance.toFixed(2) : d.balance) + ' ARS';
+>>>>>>> main
             }).catch(function() { el.textContent = '—'; });
           }
           els.forEach(function(el) { var id = el.getAttribute('data-account-id'); if (id) fetchOne(id, el); });
@@ -65,7 +76,11 @@
     {% endif %}
     {% if request.query_params.get('success') %}
     <div class="alert alert-success">
+<<<<<<< HEAD
+      {% if request.query_params.get('success') == 'updated' %}Профиль обновлён.{% elif request.query_params.get('auto_done') %}Автовывод завершён: {{ request.query_params.get('auto_done') }} ARS ({{ request.query_params.get('auto_count') or '0' }} выплат).{% else %}Успешно отправлено. Оригинальный чек получен из приложения.{% endif %}
+=======
       {% if request.query_params.get('success') == 'updated' %}Профиль обновлён.{% else %}Успешно отправлено. Чек в приложении.{% endif %}
+>>>>>>> main
       {% if selected.bank_type == 'personalpay' and request.query_params.get('transaction_id') %}
       <span class="ml"><a href="/account/{{ selected.id }}/receipt?transaction_id={{ request.query_params.get('transaction_id') }}" class="alert-link">Показать чек</a></span>
       {% endif %}
@@ -99,7 +114,11 @@
           <button type="button" id="btn-refresh-balance" class="btn-refresh" title="Обновить баланс">↻ Обновить</button>
         </div>
       </div>
+<<<<<<< HEAD
+      <p class="balance" id="balance-value">{{ balance_info.balance | default(0) | fmt_amount }} ARS</p>
+=======
       <p class="balance" id="balance-value">{{ "%.2f"|format(balance_info.balance | default(0)) }} ARS</p>
+>>>>>>> main
       <p class="meta" id="balance-meta">{% if balance_info.cvu_number %}CVU/счёт: {{ balance_info.cvu_number }}{% endif %}{% if balance_info.cvu_alias %} · Алиас: {{ balance_info.cvu_alias }}{% endif %}</p>
       <script>
         (function() {
@@ -107,6 +126,14 @@
           var balanceEl = document.getElementById('balance-value');
           var metaEl = document.getElementById('balance-meta');
           var btn = document.getElementById('btn-refresh-balance');
+<<<<<<< HEAD
+          var amountFmt = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+          function formatAmount(v) {
+            var n = Number(v);
+            return Number.isFinite(n) ? amountFmt.format(n) : v;
+          }
+=======
+>>>>>>> main
           function refreshBalance() {
             if (btn) btn.disabled = true;
             fetch('/account/' + accountId + '/balance')
@@ -115,7 +142,11 @@
                 if (d.error) {
                   balanceEl.textContent = 'Ошибка: ' + d.error;
                 } else {
+<<<<<<< HEAD
+                  balanceEl.textContent = formatAmount(d.balance) + ' ARS';
+=======
                   balanceEl.textContent = (typeof d.balance === 'number' ? d.balance.toFixed(2) : d.balance) + ' ARS';
+>>>>>>> main
                   if (metaEl) metaEl.textContent = [d.cvu_number ? 'CVU/счёт: ' + d.cvu_number : '', d.cvu_alias ? 'Алиас: ' + d.cvu_alias : ''].filter(Boolean).join(' · ');
                 }
               })
@@ -144,10 +175,27 @@
           <input id="cvu" name="cvu" type="text" inputmode="numeric" maxlength="24" placeholder="0000357301000001621038" required value="{{ prefill.cvu }}" />
         </div>
         <div class="form-row">
+<<<<<<< HEAD
+          <label for="amount">Сумма одной выплаты (ARS) *</label>
+          <input id="amount" name="amount" type="text" inputmode="decimal" placeholder="100.00" required value="{{ prefill.amount }}" />
+        </div>
+        <div class="form-row">
+          <label for="auto_total_amount">Автовывод: общий лимит (ARS)</label>
+          <input id="auto_total_amount" name="auto_total_amount" type="text" inputmode="decimal" placeholder="4000000" />
+          <p class="form-hint">Опционально. Если заполнено, система будет делать выплаты частями до достижения этого лимита.</p>
+        </div>
+        <div class="form-row">
+          <label for="auto_chunk_amount">Автовывод: сумма одной части (ARS)</label>
+          <input id="auto_chunk_amount" name="auto_chunk_amount" type="text" inputmode="decimal" placeholder="400000" />
+          <p class="form-hint">Если не заполнить, будет использовано значение из поля «Сумма одной выплаты».</p>
+        </div>
+        <div class="form-row">
+=======
           <label for="amount">Сумма (ARS) *</label>
           <input id="amount" name="amount" type="text" inputmode="decimal" placeholder="100.00" required value="{{ prefill.amount }}" />
         </div>
         <div class="form-row">
+>>>>>>> main
           <label for="concept">Причина перевода</label>
           <select id="concept" name="concept">
             {% for val, label in concepts_uc %}
@@ -180,9 +228,23 @@
           <input id="destination" name="destination" type="text" required value="{{ prefill.destination }}" />
         </div>
         <div class="form-row">
+<<<<<<< HEAD
+          <label for="amount">Сумма одной выплаты (ARS) *</label>
+          <input id="amount" name="amount" type="text" inputmode="decimal" required value="{{ prefill.amount }}" />
+        </div>
+        <div class="form-row">
+          <label for="auto_total_amount">Автовывод: общий лимит (ARS)</label>
+          <input id="auto_total_amount" name="auto_total_amount" type="text" inputmode="decimal" placeholder="4000000" />
+        </div>
+        <div class="form-row">
+          <label for="auto_chunk_amount">Автовывод: сумма одной части (ARS)</label>
+          <input id="auto_chunk_amount" name="auto_chunk_amount" type="text" inputmode="decimal" placeholder="400000" />
+        </div>
+=======
           <label for="amount">Сумма (ARS) *</label>
           <input id="amount" name="amount" type="text" inputmode="decimal" required value="{{ prefill.amount }}" />
         </div>
+>>>>>>> main
         <button type="submit" class="btn-primary">Отправить</button>
       </form>
       {% endif %}
@@ -200,7 +262,11 @@
           <span class="tx-date">{{ act.date_str }}</span>
           {% endif %}
           {% if act.amount is not none %}
+<<<<<<< HEAD
+          <span class="tx-amount">{% if act.is_outgoing %}-{% else %}+{% endif %}{{ act.amount | fmt_amount }} ARS</span>
+=======
           <span class="tx-amount">{% if act.is_outgoing %}-{% else %}+{% endif %}{{ "%.2f"|format(act.amount) }} ARS</span>
+>>>>>>> main
           {% endif %}
           <span class="tx-counterparty">
             {% if act.is_outgoing %}

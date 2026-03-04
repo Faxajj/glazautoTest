@@ -808,3 +808,87 @@ textarea:focus {
   margin-left: auto;
   cursor: help;
 }
+<<<<<<< HEAD
+
+:root {
+  --bg: #0b1120;
+  --bg-soft: #111827;
+  --card: #111827;
+  --card-border: #263246;
+  --text: #e5e7eb;
+  --text-muted: #9ca3af;
+  --accent: #38bdf8;
+}
+
+body {
+  background: radial-gradient(circle at top right, #1e293b 0%, var(--bg) 40%);
+  color: var(--text);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  backdrop-filter: blur(4px);
+}
+
+.sidebar,
+.main,
+.card,
+.profile-card {
+  will-change: auto;
+}
+
+.main {
+  flex: 1;
+  padding: 1.2rem;
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-edit,
+.btn-add,
+.btn-add-in-window,
+.btn-logout {
+  border-radius: 10px;
+}
+
+.btn-logout {
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #cbd5e1;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+}
+
+.btn-logout:hover {
+  border-color: #64748b;
+  color: #fff;
+}
+
+.login-card {
+  max-width: 460px;
+  margin: 3rem auto;
+}
+
+input, select, textarea {
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+=======
+>>>>>>> main
